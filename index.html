@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Детский сад — Учёт посещаемости</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body, #root { height: 100%; }
+  body { background: #F0F4F8; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useMemo } = React;
+
+// ─── ЗАГЛУШЕЧНЫЕ ДАННЫЕ ──────────────────────────────────────────────────────
+
+const BRANCHES = [
+  { id: 1, name: "ул. Добровольского, 8/1" },
+  { id: 2, name: "ул. Крупской, 6/2" },
+  { id: 3, name: "ул. Перелёта, 26" },
+];
+
+const GROUPS = [
+  { id: 1, name: "Лучики",  branchId: 1 },
+  { id: 2, name: "Солнышко", branchId: 1 },
+  { id: 3, name: "Свечки",  branchId: 2 },
+  { id: 4, name: "Лучики",  branchId: 2 },
+  { id: 5, name: "Солнышко", branchId: 3 },
+  { id: 6, name: "Свечки",  branchId: 3 },
+];
+
+const today = new Date().toISOString().split("T")[0];
+
+const INITIAL_CHILDREN = [
+  // Ветка 1, Группа 1 — Лучики
+  { id: 1,  name: "Иванов Артём Сергеевич",    dob: "2020-03-15", groupId: 1 },
+  { id: 2,  name: "Петрова Мария Ивановна",     dob: "2020-07-22", groupId: 1 },
+  { id: 3,  name: "Сидоров Кирилл Олегович",   dob: "2020-01-10", groupId: 1 },
+  { id: 4,  name: "Козлова Анна Дмитриевна",   dob: "2020-11-03", groupId: 1 },
+  { id: 5,  name: "Новиков Максим Андреевич",  dob: "2020-05-18", groupId: 1 },
+  // Ветка 1, Группа 2 — Солнышко
+  { id: 6,  name: "Морозова Виктория Павловна", dob: "2019-08-12", groupId: 2 },
+  { id: 7,  name: "Волков Даниил Игоревич",    dob: "2019-04-29", groupId: 2 },
+  { id: 8,  name: "Лебедева Алина Юрьевна",    dob: "2019-12-07", groupId: 2 },
+  { id: 9,  name: "Зайцев Тимофей Денисович",  dob: "2019-09-14", groupId: 2 },
+  { id: 10, name: "Орлова Полина Евгеньевна",  dob: "2019-02-21", groupId: 2 },
+  // Ветка 2, Группа 3 — Свечки
+  { id: 11, name: "Соколов Роман Владиславович", dob: "2021-06-05", groupId: 3 },
+  { id: 12, name: "Попова Дарья Алексеевна",   dob: "2021-10-18", groupId: 3 },
+  { id: 13, name: "Лазарев Илья Николаевич",   dob: "2021-03-27", groupId: 3 },
+  { id: 14, name: "Федорова Ксения Борисовна", dob: "2021-08-09", groupId: 3 },
+  // Ветка 2, Группа 4 — Лучики
+  { id: 15, name: "Макаров Степан Геннадиевич", dob: "2020-02-14", groupId: 4 },
+  { id: 16, name: "Никитина Вера Станиславовна", dob: "2020-06-30", groupId: 4 },
+  { id: 17, name: "Захаров Егор Романович",    dob: "2020-11-22", groupId: 4 },
+  { id: 18, name: "Тихонова Злата Петровна",   dob: "2020-04-11", groupId: 4 },
+  { id: 19, name: "Беляев Арсений Максимович", dob: "2020-09-03", groupId: 4 },
+  // Ветка 3, Группа 5 — Солнышко
+  { id: 20, name: "Громова Ульяна Ивановна",   dob: "2019-07-16", groupId: 5 },
+  { id: 21, name: "Пономарёв Лев Борисович",   dob: "2019-01-28", groupId: 5 },
+  { id: 22, name: "Кузьмина Ангелина Руслановна", dob: "2019-05-03", groupId: 5 },
+  { id: 23, name: "Сафонов Матвей Аркадиевич", dob: "2019-11-19", groupId: 5 },
+  { id: 24, name: "Романова Диана Игоревна",   dob: "2019-08-07", groupId: 5 },
+  // Ветка 3, Группа 6 — Свечки
+  { id: 25, name: "Дмитриев Фёдор Олегович",   dob: "2021-04-12", groupId: 6 },
+  { id: 26, name: "Кириллова Надежда Сергеевна", dob: "2021-09-25", groupId: 6 },
+  { id: 27, name: "Панов Тимур Денисович",     dob: "2021-01-08", groupId: 6 },
+  { id: 28, name: "Власова Алиса Антоновна",   dob: "2021-06-17", groupId: 6 },
+];
+
+// Звёздное небо для экрана входа (детерминированная генерация)
+const STARS = Array.from({ length: 35 }, (_, i) => {
+  // простой детерминированный псевдослучайный набор на основе индекса
+  const seed = (i * 9301 + 49297) % 233280;
+  const rnd = (n) => ((seed * (n + 1)) % 100) / 100;
+  return {
+    x: rnd(1) * 100,
+    y: rnd(2) * 100,
+    size: 8 + rnd(3) * 14,
+    opacity: 0.25 + rnd(4) * 0.55,
+    rotate: rnd(5) * 360,
+  };
+});
+
+const SPARKLES = [
+  { x: 12, y: 14, size: 18, opacity: 0.5, rotate: 0 },
+  { x: 78, y: 22, size: 12, opacity: 0.35, rotate: 20 },
+  { x: 85, y: 68, size: 22, opacity: 0.45, rotate: -10 },
+  { x: 20, y: 78, size: 14, opacity: 0.4, rotate: 15 },
+  { x: 55, y: 8, size: 10, opacity: 0.3, rotate: -25 },
+  { x: 6, y: 50, size: 16, opacity: 0.35, rotate: 5 },
+];
+
+
+const INITIAL_ATTENDANCE = Object.fromEntries(
+  INITIAL_CHILDREN.map((c) => [`${c.id}_${today}`, [1,2,4,6,8,11,13,15,17,20,22,24,26,28].includes(c.id)])
+);
+
+// ─── СТИЛИ ───────────────────────────────────────────────────────────────────
+
+const S = {
+  // Корневой контейнер
+  root: {
+    maxWidth: 430,
+    margin: "0 auto",
+    minHeight: "100vh",
+    background: "#F0F4F8",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    display: "flex",
+    flexDirection: "column",
+    fontSize: 15,
+    color: "#2C3E50",
+  },
+  // Хедер
+  header: {
+    background: "#1A5C8A",
+    color: "#fff",
+    padding: "14px 16px 10px",
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
+  },
+  headerTop: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  backBtn: {
+    background: "none",
+    border: "none",
+    color: "#fff",
+    fontSize: 22,
+    cursor: "pointer",
+    padding: "0 4px",
+    lineHeight: 1,
+    flexShrink: 0,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: 600,
+    flex: 1,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  breadcrumb: {
+    fontSize: 11,
+    opacity: 0.75,
+    marginTop: 4,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  // Основная область
+  content: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "12px 12px 24px",
+  },
+  // Карточки-элементы списка
+  card: {
+    background: "#fff",
+    borderRadius: 12,
+    marginBottom: 10,
+    overflow: "hidden",
+    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+  },
+  cardPressable: {
+    display: "flex",
+    alignItems: "center",
+    padding: "14px 16px",
+    cursor: "pointer",
+    gap: 12,
+    textDecoration: "none",
+    color: "inherit",
+    WebkitTapHighlightColor: "transparent",
+    transition: "background 0.15s",
+  },
+  cardIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #E8F1F8 0%, #D6E8F5 100%)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 20,
+    flexShrink: 0,
+    boxShadow: "inset 0 1px 2px rgba(255,255,255,0.6)",
+  },
+  cardText: { flex: 1 },
+  cardTitle: { fontWeight: 600, fontSize: 15 },
+  cardSub: { fontSize: 12, color: "#7F8C8D", marginTop: 2 },
+  cardChevron: { color: "#BDC3C7", fontSize: 18 },
+  // Экран входа
+  loginRoot: {
+    minHeight: "100vh",
+    background: "linear-gradient(160deg, #0B2A4A 0%, #1A5C8A 55%, #2E7DAF 100%)",
+    position: "relative",
+    overflow: "hidden",
+  },
+  starsLayer: {
+    position: "absolute",
+    inset: 0,
+    pointerEvents: "none",
+  },
+  loginWrap: {
+    position: "relative",
+    zIndex: 1,
+    flex: 1,
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    gap: 16,
+  },
+  loginCard: {
+    width: "100%",
+    background: "rgba(255,255,255,0.97)",
+    borderRadius: 22,
+    padding: "28px 22px",
+    boxShadow: "0 12px 40px rgba(0,0,0,0.25)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 16,
+  },
+  loginLogo: {
+    width: 80, height: 80,
+    background: "linear-gradient(135deg, #1A5C8A 0%, #2E7DAF 100%)",
+    borderRadius: 20,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 36,
+    marginBottom: 4,
+    boxShadow: "0 6px 18px rgba(26,92,138,0.35)",
+  },
+  loginTitle: { fontSize: 22, fontWeight: 700, color: "#1A5C8A", textAlign: "center" },
+  loginSub: { fontSize: 13, color: "#7F8C8D", textAlign: "center", marginTop: -8 },
+  loginForm: { width: "100%", display: "flex", flexDirection: "column", gap: 12, marginTop: 8 },
+  label: { fontSize: 12, fontWeight: 600, color: "#5D6D7E", marginBottom: 4, display: "block" },
+  input: {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: 10,
+    border: "1.5px solid #D5DCE6",
+    fontSize: 15,
+    background: "#fff",
+    color: "#2C3E50",
+    outline: "none",
+    boxSizing: "border-box",
+    transition: "border-color 0.15s",
+  },
+  // Переключатель роли
+  roleTabs: {
+    display: "flex",
+    background: "#E8F1F8",
+    borderRadius: 10,
+    padding: 3,
+    gap: 3,
+  },
+  roleTab: {
+    flex: 1,
+    padding: "8px 0",
+    borderRadius: 8,
+    border: "none",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "background 0.15s, color 0.15s",
+  },
+  roleTabActive: { background: "#1A5C8A", color: "#fff" },
+  roleTabInactive: { background: "none", color: "#5D6D7E" },
+  // Кнопки
+  btn: {
+    width: "100%",
+    padding: "14px",
+    borderRadius: 12,
+    border: "none",
+    fontSize: 15,
+    fontWeight: 700,
+    cursor: "pointer",
+    transition: "opacity 0.15s",
+  },
+  btnPrimary: { background: "#1A5C8A", color: "#fff" },
+  btnSecondary: { background: "#E8F1F8", color: "#1A5C8A" },
+  btnDanger: { background: "#FDECEA", color: "#E74C3C" },
+  btnSmall: {
+    padding: "8px 16px",
+    borderRadius: 8,
+    border: "none",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  // Строка посещаемости
+  attendRow: {
+    display: "flex",
+    alignItems: "center",
+    padding: "12px 16px",
+    cursor: "pointer",
+    gap: 12,
+    borderBottom: "1px solid #F0F4F8",
+    WebkitTapHighlightColor: "transparent",
+  },
+  attendAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 700,
+    fontSize: 14,
+    flexShrink: 0,
+  },
+  attendName: { flex: 1, fontWeight: 500, fontSize: 14 },
+  attendBadge: {
+    padding: "4px 10px",
+    borderRadius: 20,
+    fontSize: 12,
+    fontWeight: 700,
+    flexShrink: 0,
+  },
+  // Форма добавления
+  formGroup: { display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 },
+  formCard: { background: "#fff", borderRadius: 12, padding: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.08)" },
+  // Карточка ребёнка
+  childCardHeader: {
+    background: "#1A5C8A",
+    borderRadius: "12px 12px 0 0",
+    padding: "24px 20px 20px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 10,
+  },
+  childAvatar: {
+    width: 64, height: 64,
+    borderRadius: "50%",
+    background: "rgba(255,255,255,0.2)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 28,
+    color: "#fff",
+  },
+  childName: { fontSize: 18, fontWeight: 700, color: "#fff", textAlign: "center" },
+  childGroup: { fontSize: 13, color: "rgba(255,255,255,0.8)" },
+  infoRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "10px 0",
+    borderBottom: "1px solid #F0F4F8",
+  },
+  infoLabel: { fontSize: 13, color: "#7F8C8D" },
+  infoValue: { fontSize: 13, fontWeight: 600 },
+  // Сводка (админ)
+  summaryCard: {
+    background: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+  },
+  summaryBranchName: { fontWeight: 700, fontSize: 15, marginBottom: 8 },
+  summaryGroup: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "6px 0",
+    borderBottom: "1px solid #F8FAFB",
+  },
+  progressBar: {
+    height: 4,
+    background: "#E8F1F8",
+    borderRadius: 2,
+    overflow: "hidden",
+    flex: 1,
+    margin: "0 10px",
+  },
+  // Дата-пикер
+  datePicker: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    background: "#fff",
+    borderRadius: 10,
+    padding: "10px 14px",
+    marginBottom: 12,
+    boxShadow: "0 1px 4px rgba(0,0,0,0.07)",
+  },
+  dateInput: {
+    flex: 1,
+    border: "none",
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#1A5C8A",
+    background: "none",
+    outline: "none",
+  },
+  // Модалка/оверлей
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.4)",
+    zIndex: 200,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  modal: {
+    background: "#fff",
+    borderRadius: "20px 20px 0 0",
+    padding: "20px 20px 40px",
+    width: "100%",
+    maxWidth: 430,
+    maxHeight: "85vh",
+    overflowY: "auto",
+  },
+  modalTitle: { fontSize: 17, fontWeight: 700, marginBottom: 16 },
+  // Тост
+  toast: {
+    position: "fixed",
+    bottom: 40,
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "#2C3E50",
+    color: "#fff",
+    borderRadius: 24,
+    padding: "10px 20px",
+    fontSize: 13,
+    fontWeight: 600,
+    zIndex: 300,
+    whiteSpace: "nowrap",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+  },
+  // Разделитель секций
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#7F8C8D",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    padding: "16px 4px 8px",
+  },
+  // Пустое состояние
+  empty: {
+    textAlign: "center",
+    padding: "48px 24px",
+    color: "#7F8C8D",
+    fontSize: 14,
+  },
+  // Выход
+  logoutRow: {
+    padding: "20px 0 4px",
+    display: "flex",
+    justifyContent: "center",
+  },
+  fileBtn: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 14px",
+    background: "#F0F4F8",
+    borderRadius: 10,
+    border: "1.5px dashed #BDC3C7",
+    cursor: "pointer",
+    fontSize: 13,
+    color: "#5D6D7E",
+    width: "100%",
+    justifyContent: "center",
+    boxSizing: "border-box",
+  },
+};
+
+// ─── ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ──────────────────────────────────────────────
+
+function initials(name) {
+  return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+}
+
+function formatDate(iso) {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+function calcAge(dob) {
+  const b = new Date(dob), n = new Date();
+  let age = n.getFullYear() - b.getFullYear();
+  if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) age--;
+  return age;
+}
+
+const AVATAR_COLORS = ["#3498DB","#E67E22","#27AE60","#9B59B6","#E74C3C","#16A085","#2980B9","#8E44AD"];
+function avatarColor(id) { return AVATAR_COLORS[id % AVATAR_COLORS.length]; }
+
+function Header({ title, onBack, breadcrumb, right }) {
+  return (
+    <div style={S.header}>
+      <div style={S.headerTop}>
+        {onBack && (
+          <button style={S.backBtn} onClick={onBack} aria-label="Назад">‹</button>
+        )}
+        <span style={S.headerTitle}>{title}</span>
+        {right}
+      </div>
+      {breadcrumb && <div style={S.breadcrumb}>{breadcrumb}</div>}
+    </div>
+  );
+}
+
+function Toast({ message }) {
+  if (!message) return null;
+  return <div style={S.toast}>{message}</div>;
+}
+
+// ─── ЭКРАНЫ ──────────────────────────────────────────────────────────────────
+
+// 1. Экран входа
+function LoginScreen({ onLogin }) {
+  const [login, setLogin] = useState("admin");
+  const [password, setPassword] = useState("demo");
+  const [role, setRole] = useState("admin");
+
+  function handleSubmit() {
+    if (!login.trim() || !password.trim()) return;
+    onLogin(role);
+  }
+
+  return (
+    <div style={S.loginRoot}>
+      {/* Звёздное небо */}
+      <div style={S.starsLayer}>
+        {STARS.map((s, i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: `${s.x}%`,
+              top: `${s.y}%`,
+              fontSize: s.size,
+              opacity: s.opacity,
+              transform: `rotate(${s.rotate}deg)`,
+              lineHeight: 1,
+            }}
+          >
+            ⭐️
+          </div>
+        ))}
+        {/* Несколько крупных "звёзд"-искринок */}
+        {SPARKLES.map((s, i) => (
+          <div
+            key={`sp-${i}`}
+            style={{
+              position: "absolute",
+              left: `${s.x}%`,
+              top: `${s.y}%`,
+              fontSize: s.size,
+              opacity: s.opacity,
+              color: "#fff",
+              transform: `rotate(${s.rotate}deg)`,
+            }}
+          >
+            ✦
+          </div>
+        ))}
+      </div>
+
+      <div style={S.loginWrap}>
+        <div style={S.loginCard}>
+          <div style={S.loginLogo}>🏫</div>
+          <div style={S.loginTitle}>Детский сад</div>
+          <div style={S.loginSub}>Система учёта посещаемости</div>
+
+          <div style={S.loginForm}>
+            <div>
+              <span style={S.label}>Логин</span>
+              <input
+                style={S.input}
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
+                placeholder="Введите логин"
+                autoCapitalize="none"
+              />
+            </div>
+            <div>
+              <span style={S.label}>Пароль</span>
+              <input
+                style={S.input}
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Введите пароль"
+              />
+            </div>
+
+            <div>
+              <span style={S.label}>Роль (для демо)</span>
+              <div style={S.roleTabs}>
+                {[["teacher","Воспитатель"],["admin","Администратор"]].map(([val, label]) => (
+                  <button
+                    key={val}
+                    style={{ ...S.roleTab, ...(role === val ? S.roleTabActive : S.roleTabInactive) }}
+                    onClick={() => setRole(val)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              style={{ ...S.btn, ...S.btnPrimary, marginTop: 4 }}
+              onClick={handleSubmit}
+            >
+              Войти
+            </button>
+          </div>
+
+          <div style={{ fontSize: 11, color: "#BDC3C7", textAlign: "center" }}>
+            Демо-режим — без реальной авторизации
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 2. Экран выбора филиала (воспитатель)
+function BranchListScreen({ branches, groups, children, attendance, date, role, onSelect, onLogout }) {
+  return (
+    <div style={S.root}>
+      <Header
+        title="Филиалы"
+        right={
+          <button
+            style={{ ...S.btnSmall, background: "rgba(255,255,255,0.15)", color: "#fff", marginLeft: "auto" }}
+            onClick={onLogout}
+          >
+            Выйти
+          </button>
+        }
+        breadcrumb={role === "admin" ? "Администратор" : "Воспитатель"}
+      />
+      <div style={S.content}>
+        <div style={S.sectionTitle}>Выберите филиал</div>
+        {branches.map((b) => {
+          const bGroups = groups.filter((g) => g.branchId === b.id);
+          const bChildren = children.filter((c) => bGroups.some((g) => g.id === c.groupId));
+          const present = bChildren.filter((c) => attendance[`${c.id}_${date}`] === true).length;
+          return (
+            <div key={b.id} style={S.card}>
+              <div
+                style={S.cardPressable}
+                onClick={() => onSelect(b)}
+                role="button"
+                tabIndex={0}
+              >
+                <div style={S.cardIcon}>📍</div>
+                <div style={S.cardText}>
+                  <div style={S.cardTitle}>{b.name}</div>
+                  <div style={{ fontSize: 12, color: "#1A5C8A", marginTop: 3, fontWeight: 600 }}>
+                    Сегодня: {present} из {bChildren.length} присутствуют
+                  </div>
+                </div>
+                <div style={S.cardChevron}>›</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 3. Экран групп филиала
+function GroupListScreen({ branch, groups, children, attendance, date, onSelect, onBack }) {
+  return (
+    <div style={S.root}>
+      <Header
+        title={branch.name}
+        onBack={onBack}
+        breadcrumb={`Филиал · ${branch.name}`}
+      />
+      <div style={S.content}>
+        <div style={S.sectionTitle}>Группы</div>
+        {groups.map((g) => {
+          const kids = children.filter((c) => c.groupId === g.id);
+          const present = kids.filter((c) => attendance[`${c.id}_${date}`] === true).length;
+          return (
+            <div key={g.id} style={S.card}>
+              <div
+                style={S.cardPressable}
+                onClick={() => onSelect(g)}
+                role="button"
+                tabIndex={0}
+              >
+                <div style={S.cardIcon}>👶</div>
+                <div style={S.cardText}>
+                  <div style={S.cardTitle}>{g.name}</div>
+                  <div style={S.cardSub}>{kids.length} детей</div>
+                  <div style={{ fontSize: 12, color: "#27AE60", marginTop: 3, fontWeight: 600 }}>
+                    ✓ {present} / {kids.length} сегодня
+                  </div>
+                </div>
+                <div style={S.cardChevron}>›</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 4. Экран списка детей с посещаемостью
+function ChildListScreen({ group, branch, children, attendance, date, onToggle, onDateChange, onOpenChild, onAdd, onBack }) {
+  const kids = children.filter((c) => c.groupId === group.id);
+  const present = kids.filter((c) => attendance[`${c.id}_${date}`] === true).length;
+
+  return (
+    <div style={S.root}>
+      <Header
+        title={group.name}
+        onBack={onBack}
+        breadcrumb={`${branch.name} · Группа ${group.name}`}
+      />
+      <div style={S.content}>
+        {/* Дата */}
+        <div style={S.datePicker}>
+          <span style={{ fontSize: 16 }}>📅</span>
+          <input
+            type="date"
+            style={S.dateInput}
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+          />
+        </div>
+
+        {/* Статистика */}
+        <div style={{
+          background: "#fff",
+          borderRadius: 12,
+          padding: "12px 16px",
+          marginBottom: 12,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, color: "#7F8C8D" }}>Присутствуют</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#1A5C8A" }}>
+              {present} <span style={{ fontSize: 14, color: "#BDC3C7", fontWeight: 400 }}>/ {kids.length}</span>
+            </div>
+          </div>
+          <div style={{ width: 60, height: 60, position: "relative" }}>
+            <svg viewBox="0 0 36 36" style={{ transform: "rotate(-90deg)", width: 60, height: 60 }}>
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#E8F1F8" strokeWidth="3" />
+              <circle
+                cx="18" cy="18" r="15.9"
+                fill="none"
+                stroke="#27AE60"
+                strokeWidth="3"
+                strokeDasharray={`${kids.length ? (present / kids.length) * 100 : 0} 100`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: "#27AE60" }}>
+              {kids.length ? Math.round((present / kids.length) * 100) : 0}%
+            </div>
+          </div>
+        </div>
+
+        {/* Список */}
+        <div style={S.sectionTitle}>Дети ({kids.length})</div>
+        <div style={S.card}>
+          {kids.length === 0 && (
+            <div style={S.empty}>Нет детей в группе</div>
+          )}
+          {kids.map((child, i) => {
+            const key = `${child.id}_${date}`;
+            const isPresent = attendance[key] === true;
+            const isAbsent = attendance[key] === false;
+            const isUnmarked = attendance[key] === undefined;
+
+            return (
+              <div
+                key={child.id}
+                style={{
+                  ...S.attendRow,
+                  borderBottom: i < kids.length - 1 ? "1px solid #F0F4F8" : "none",
+                  background: isPresent ? "#F0FBF4" : isAbsent ? "#FEF9F9" : "#fff",
+                }}
+              >
+                {/* Аватар (клик → карточка) */}
+                <div
+                  style={{ ...S.attendAvatar, background: avatarColor(child.id), color: "#fff", cursor: "pointer" }}
+                  onClick={() => onOpenChild(child)}
+                  title="Карточка ребёнка"
+                >
+                  {initials(child.name)}
+                </div>
+
+                {/* Имя (клик → карточка) */}
+                <div style={{ ...S.attendName, cursor: "pointer" }} onClick={() => onOpenChild(child)}>
+                  <div>{child.name.split(" ").slice(0, 2).join(" ")}</div>
+                  <div style={{ fontSize: 11, color: "#7F8C8D" }}>{child.name.split(" ")[2] || ""}</div>
+                </div>
+
+                {/* Переключатель */}
+                <button
+                  style={{
+                    ...S.attendBadge,
+                    background: isPresent ? "#E8F8EF" : isAbsent ? "#FDECEA" : "#F0F4F8",
+                    color: isPresent ? "#27AE60" : isAbsent ? "#E74C3C" : "#7F8C8D",
+                    border: "none",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                  onClick={() => onToggle(child.id, date)}
+                >
+                  {isPresent ? "✓ Был" : isAbsent ? "✗ Нет" : "— ?"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Кнопка добавить */}
+        <button
+          style={{ ...S.btn, ...S.btnSecondary, marginTop: 8 }}
+          onClick={onAdd}
+        >
+          + Добавить ребёнка
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// 5. Карточка ребёнка
+function ChildCardScreen({ child, group, branch, attendance, onBack, onContractView }) {
+  const records = Object.entries(attendance)
+    .filter(([k]) => k.startsWith(`${child.id}_`))
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 5);
+
+  return (
+    <div style={S.root}>
+      <Header title="Карточка ребёнка" onBack={onBack} />
+      <div style={{ ...S.content, padding: 0 }}>
+        <div style={S.childCardHeader}>
+          <div style={S.childAvatar}>{initials(child.name)}</div>
+          <div style={S.childName}>{child.name}</div>
+          <div style={S.childGroup}>{group?.name} · {branch?.name}</div>
+        </div>
+
+        <div style={{ padding: "16px 16px 24px" }}>
+          <div style={S.formCard}>
+            {[
+              ["Дата рождения", formatDate(child.dob)],
+              ["Возраст", `${calcAge(child.dob)} лет`],
+              ["Группа", group?.name || "—"],
+              ["Филиал", branch?.name || "—"],
+              ["Статус", "Активен"],
+            ].map(([label, value]) => (
+              <div key={label} style={S.infoRow}>
+                <span style={S.infoLabel}>{label}</span>
+                <span style={S.infoValue}>{value}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={S.sectionTitle}>Договор</div>
+          <div style={S.formCard}>
+            <button
+              style={{ ...S.btn, background: "#E8F1F8", color: "#1A5C8A", fontWeight: 600 }}
+              onClick={onContractView}
+            >
+              📄 Просмотреть договор
+            </button>
+          </div>
+
+          {records.length > 0 && (
+            <>
+              <div style={S.sectionTitle}>Последние отметки</div>
+              <div style={S.formCard}>
+                {records.map(([key, val]) => {
+                  const dateStr = key.split("_")[1];
+                  return (
+                    <div key={key} style={{ ...S.infoRow }}>
+                      <span style={S.infoLabel}>{formatDate(dateStr)}</span>
+                      <span style={{
+                        ...S.attendBadge,
+                        background: val ? "#E8F8EF" : "#FDECEA",
+                        color: val ? "#27AE60" : "#E74C3C",
+                        padding: "2px 8px",
+                      }}>
+                        {val ? "✓ Присутствовал" : "✗ Отсутствовал"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 6. Форма добавления ребёнка (модальная)
+function AddChildModal({ group, groups, onAdd, onClose }) {
+  const [name, setName] = useState("");
+  const [dob, setDob] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState(group?.id || groups[0]?.id);
+  const [fileName, setFileName] = useState("");
+
+  function handleFileChange(e) {
+    if (e.target.files[0]) setFileName(e.target.files[0].name);
+  }
+
+  function handleSubmit() {
+    if (!name.trim() || !dob) return;
+    onAdd({ name: name.trim(), dob, groupId: Number(selectedGroup), fileName });
+  }
+
+  return (
+    <div style={S.overlay} onClick={onClose}>
+      <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={S.modalTitle}>Добавить ребёнка</div>
+
+        <div style={S.formGroup}>
+          <span style={S.label}>ФИО ребёнка *</span>
+          <input
+            style={S.input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Фамилия Имя Отчество"
+          />
+        </div>
+
+        <div style={S.formGroup}>
+          <span style={S.label}>Дата рождения *</span>
+          <input
+            type="date"
+            style={S.input}
+            value={dob}
+            onChange={(e) => setDob(e.target.value)}
+          />
+        </div>
+
+        <div style={S.formGroup}>
+          <span style={S.label}>Группа</span>
+          <select
+            style={{ ...S.input, appearance: "none", WebkitAppearance: "none" }}
+            value={selectedGroup}
+            onChange={(e) => setSelectedGroup(e.target.value)}
+          >
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name} (id {g.id})</option>
+            ))}
+          </select>
+        </div>
+
+        <div style={S.formGroup}>
+          <span style={S.label}>Договор (PDF)</span>
+          <label style={S.fileBtn}>
+            <input
+              type="file"
+              accept=".pdf"
+              style={{ display: "none" }}
+              onChange={handleFileChange}
+            />
+            📎 {fileName || "Прикрепить договор"}
+          </label>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <button style={{ ...S.btn, ...S.btnSecondary, flex: 1 }} onClick={onClose}>Отмена</button>
+          <button
+            style={{ ...S.btn, ...S.btnPrimary, flex: 1, opacity: (!name.trim() || !dob) ? 0.5 : 1 }}
+            onClick={handleSubmit}
+            disabled={!name.trim() || !dob}
+          >
+            Добавить
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 7. Админ — сводный экран
+function AdminOverviewScreen({ branches, groups, children, attendance, date, onDateChange, onBranchSelect, onLogout }) {
+  const total = children.length;
+  const totalPresent = children.filter((c) => attendance[`${c.id}_${date}`] === true).length;
+
+  return (
+    <div style={S.root}>
+      <Header
+        title="Обзор"
+        right={
+          <button
+            style={{ ...S.btnSmall, background: "rgba(255,255,255,0.15)", color: "#fff", marginLeft: "auto" }}
+            onClick={onLogout}
+          >
+            Выйти
+          </button>
+        }
+        breadcrumb="Администратор · Все филиалы"
+      />
+      <div style={S.content}>
+        {/* Дата */}
+        <div style={S.datePicker}>
+          <span>📅</span>
+          <input
+            type="date"
+            style={S.dateInput}
+            value={date}
+            onChange={(e) => onDateChange(e.target.value)}
+          />
+        </div>
+
+        {/* Общая сводка */}
+        <div style={{
+          background: "linear-gradient(135deg, #1A5C8A 0%, #2E7DAF 100%)",
+          borderRadius: 14,
+          padding: "16px 20px",
+          marginBottom: 16,
+          color: "#fff",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          position: "relative",
+          overflow: "hidden",
+        }}>
+          <span style={{ position: "absolute", top: 10, right: 14, fontSize: 16, opacity: 0.35 }}>✦</span>
+          <span style={{ position: "absolute", bottom: 14, right: 60, fontSize: 10, opacity: 0.25 }}>✦</span>
+          <div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>Всего присутствуют</div>
+            <div style={{ fontSize: 36, fontWeight: 800, lineHeight: 1.1 }}>{totalPresent}</div>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>из {total} детей</div>
+          </div>
+          <div style={{ fontSize: 48, opacity: 0.9 }}>
+            {total ? Math.round((totalPresent / total) * 100) : 0}%
+          </div>
+        </div>
+
+        {/* По филиалам */}
+        <div style={S.sectionTitle}>Филиалы</div>
+        {branches.map((b) => {
+          const bGroups = groups.filter((g) => g.branchId === b.id);
+          const bChildren = children.filter((c) => bGroups.some((g) => g.id === c.groupId));
+          const bPresent = bChildren.filter((c) => attendance[`${c.id}_${date}`] === true).length;
+          const pct = bChildren.length ? Math.round((bPresent / bChildren.length) * 100) : 0;
+
+          return (
+            <div
+              key={b.id}
+              style={{ ...S.summaryCard, cursor: "pointer" }}
+              onClick={() => onBranchSelect(b)}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                <div>
+                  <div style={S.summaryBranchName}>{b.name}</div>
+                </div>
+                <div style={{
+                  background: pct >= 70 ? "#E8F8EF" : pct >= 40 ? "#FEF9E7" : "#FDECEA",
+                  color: pct >= 70 ? "#27AE60" : pct >= 40 ? "#E67E22" : "#E74C3C",
+                  borderRadius: 20, padding: "4px 10px", fontSize: 13, fontWeight: 700,
+                }}>
+                  {pct}%
+                </div>
+              </div>
+
+              {/* Прогресс */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={S.progressBar}>
+                  <div style={{ width: `${pct}%`, height: "100%", background: pct >= 70 ? "#27AE60" : pct >= 40 ? "#E67E22" : "#E74C3C", borderRadius: 2, transition: "width 0.4s" }} />
+                </div>
+                <span style={{ fontSize: 12, color: "#7F8C8D", flexShrink: 0 }}>{bPresent}/{bChildren.length}</span>
+              </div>
+
+              {/* Группы */}
+              {bGroups.map((g) => {
+                const gKids = children.filter((c) => c.groupId === g.id);
+                const gPresent = gKids.filter((c) => attendance[`${c.id}_${date}`] === true).length;
+                return (
+                  <div key={g.id} style={S.summaryGroup}>
+                    <span style={{ fontSize: 13 }}>👶 {g.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1A5C8A" }}>{gPresent}/{gKids.length}</span>
+                  </div>
+                );
+              })}
+
+              <div style={{ fontSize: 11, color: "#BDC3C7", marginTop: 8, textAlign: "right" }}>
+                Нажмите для детального просмотра ›
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── КОРНЕВОЕ ПРИЛОЖЕНИЕ ─────────────────────────────────────────────────────
+
+function App() {
+  // Авторизация
+  const [role, setRole] = useState(null); // null | "teacher" | "admin"
+
+  // Данные
+  const [children, setChildren] = useState(INITIAL_CHILDREN);
+  const [attendance, setAttendance] = useState(INITIAL_ATTENDANCE);
+  const [date, setDate] = useState(today);
+
+  // Навигация
+  const [screen, setScreen] = useState("branches"); // branches | groups | childlist | childcard | adminoverview
+  const [selBranch, setSelBranch] = useState(null);
+  const [selGroup, setSelGroup] = useState(null);
+  const [selChild, setSelChild] = useState(null);
+
+  // UI
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [toast, setToast] = useState("");
+  const [nextId, setNextId] = useState(100);
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2500);
+  }
+
+  function handleLogin(r) {
+    setRole(r);
+    setScreen(r === "admin" ? "adminoverview" : "branches");
+  }
+
+  function handleLogout() {
+    setRole(null);
+    setScreen("branches");
+    setSelBranch(null);
+    setSelGroup(null);
+    setSelChild(null);
+  }
+
+  function toggleAttendance(childId, d) {
+    const key = `${childId}_${d}`;
+    setAttendance((prev) => {
+      const cur = prev[key];
+      // undefined → true → false → undefined
+      const next = cur === undefined ? true : cur === true ? false : undefined;
+      const copy = { ...prev };
+      if (next === undefined) delete copy[key];
+      else copy[key] = next;
+      return copy;
+    });
+  }
+
+  function handleAddChild({ name, dob, groupId }) {
+    const newChild = { id: nextId, name, dob, groupId };
+    setChildren((prev) => [...prev, newChild]);
+    setNextId((n) => n + 1);
+    setShowAddModal(false);
+    showToast(`${name.split(" ")[0]} добавлен в список`);
+  }
+
+  // Найти группу/филиал для карточки
+  const childGroup = useMemo(() => selChild ? GROUPS.find((g) => g.id === selChild.groupId) || groups.find((g) => g.id === selChild.groupId) : null, [selChild, children]);
+  const childBranch = useMemo(() => childGroup ? BRANCHES.find((b) => b.id === childGroup.branchId) : null, [childGroup]);
+
+  // groups с учётом добавленных детей (только для правильного отображения)
+  const groups = GROUPS;
+
+  if (!role) return <LoginScreen onLogin={handleLogin} />;
+
+  return (
+    <div style={{ maxWidth: 430, margin: "0 auto", minHeight: "100vh", background: "#F0F4F8" }}>
+      {/* ── ЭКРАНЫ ── */}
+      {screen === "adminoverview" && role === "admin" && (
+        <AdminOverviewScreen
+          branches={BRANCHES}
+          groups={groups}
+          children={children}
+          attendance={attendance}
+          date={date}
+          onDateChange={setDate}
+          onBranchSelect={(b) => { setSelBranch(b); setScreen("groups"); }}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {screen === "branches" && (
+        <BranchListScreen
+          branches={BRANCHES}
+          groups={groups}
+          children={children}
+          attendance={attendance}
+          date={date}
+          role={role}
+          onSelect={(b) => { setSelBranch(b); setScreen("groups"); }}
+          onLogout={handleLogout}
+        />
+      )}
+
+      {screen === "groups" && selBranch && (
+        <GroupListScreen
+          branch={selBranch}
+          groups={groups.filter((g) => g.branchId === selBranch.id)}
+          children={children}
+          attendance={attendance}
+          date={date}
+          onSelect={(g) => { setSelGroup(g); setScreen("childlist"); }}
+          onBack={() => {
+            if (role === "admin") setScreen("adminoverview");
+            else setScreen("branches");
+          }}
+        />
+      )}
+
+      {screen === "childlist" && selGroup && selBranch && (
+        <ChildListScreen
+          group={selGroup}
+          branch={selBranch}
+          children={children}
+          attendance={attendance}
+          date={date}
+          onToggle={toggleAttendance}
+          onDateChange={setDate}
+          onOpenChild={(c) => { setSelChild(c); setScreen("childcard"); }}
+          onAdd={() => setShowAddModal(true)}
+          onBack={() => setScreen("groups")}
+        />
+      )}
+
+      {screen === "childcard" && selChild && (
+        <ChildCardScreen
+          child={selChild}
+          group={groups.find((g) => g.id === selChild.groupId)}
+          branch={BRANCHES.find((b) => {
+            const g = groups.find((gg) => gg.id === selChild.groupId);
+            return g && b.id === g.branchId;
+          })}
+          attendance={attendance}
+          onBack={() => setScreen("childlist")}
+          onContractView={() => showToast("📄 Договор: открытие файла (заглушка)")}
+        />
+      )}
+
+      {/* ── МОДАЛ ДОБАВЛЕНИЯ ── */}
+      {showAddModal && (
+        <AddChildModal
+          group={selGroup}
+          groups={groups}
+          onAdd={handleAddChild}
+          onClose={() => setShowAddModal(false)}
+        />
+      )}
+
+      {/* ── ТОСТ ── */}
+      <Toast message={toast} />
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>
